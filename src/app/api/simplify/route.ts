@@ -6,8 +6,8 @@ export const runtime = "nodejs"; // ensure Node runtime for pdf-parse
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
     }
 
     const contentType = req.headers.get("content-type") || "";
