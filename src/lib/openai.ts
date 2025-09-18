@@ -1,8 +1,8 @@
-if (!process.env.HUGGINGFACE_API_KEY) {
-  console.warn("HUGGINGFACE_API_KEY is not set. Set it in your environment to enable AI analysis.");
+if (!process.env.GEMINI_API_KEY) {
+  console.warn("GEMINI_API_KEY is not set. Set it in your environment to enable AI analysis.");
 }
 
-const HF_MODEL = process.env.HUGGINGFACE_MODEL || "meta-llama/Meta-Llama-3.1-8B-Instruct";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 export type SimplifiedFinding = {
   name: string;
@@ -17,6 +17,8 @@ export type SimplifiedReport = {
   cautions: string[];
   rawTextSnippet?: string;
 };
+
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function simplifyMedicalReport(text: string): Promise<SimplifiedReport> {
   const system = `You are a clinical explainer that rewrites medical lab reports into plain language for laypeople.
@@ -34,36 +36,26 @@ Return strict JSON with the following shape:
 }`;
 
   const user = `Report text to analyze (may be partial or noisy):\n\n${text.slice(0, 4000)}`;
-
   const prompt = `${system}\n\n${user}`;
 
   try {
-    const res = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(HF_MODEL)}`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 800,
-          temperature: 0.2,
-          return_full_text: false,
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
         },
-      }),
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 800,
+      },
     });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`Hugging Face API error: ${res.status} ${res.statusText} ${errText}`);
-    }
-
-    const data = await res.json();
-    const content: string = Array.isArray(data)
-      ? String(data[0]?.generated_text ?? "")
-      : String(data?.generated_text ?? "");
-
+    const content = String(result.response.text() || "");
     const jsonString = extractJson(content.trim());
     try {
       const parsed = JSON.parse(jsonString);
